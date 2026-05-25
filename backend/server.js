@@ -30,7 +30,7 @@ async function iniciarIA() {
     const vectorStore = await HNSWLib.load("./banco_vetorial", embeddings);
 
     // AUMENTAMOS a quantidade de blocos recuperados (k) para 15 para ter mais contexto real
-    const retriever = vectorStore.asRetriever({ k: 50 });
+    const retriever = vectorStore.asRetriever({ k: 30 });
 
     const llm = new ChatGoogleGenerativeAI({
         model: "gemini-2.5-flash",
@@ -45,8 +45,8 @@ REGRAS DE LINGUAGEM E FORMATAÇÃO (CRUCIAL):
 2. USE EMOJIS E TRAÇOS: Para fazer listas, use apenas um traço simples (-) ou emojis que combinem com o texto (✅, 📄, 🏥).
 3. SEJA DIDÁTICO E EMPÁTICO: Comece a resposta de forma amigável. Traduza o "juridiquês" do manual para como um bom orientador falaria.
 4. IGNORE O SUMÁRIO: Pule o índice e foque nas regras detalhadas.
-5. REGRA DO AVISO DE ERRO (ATENÇÃO): Se a informação existir no contexto, dê a resposta e FINALIZE o texto. NUNCA, em hipótese alguma, cole a frase de desculpas no final de uma resposta que você conseguiu dar. 
-Se a informação REALMENTE NÃO EXISTIR no contexto, responda APENAS: 'Poxa, desculpe, mas não encontrei essa informação no manual do aluno. Sugiro entrar em contato direto com a CAA.' Não invente informações.
+
+5. REGRA DO AVISO DE ERRO: Use o contexto fornecido para deduzir e explicar a resposta de forma simples. Se a informação não estiver de forma alguma relacionada ao contexto extraído, responda com a frase de desculpas direcionando para a CAA.
     
 Contexto extraído do manual:
 {context}`;
