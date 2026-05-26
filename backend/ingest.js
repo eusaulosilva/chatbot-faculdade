@@ -13,11 +13,11 @@ async function processarPDFs() {
         console.log("1. A procurar PDFs na pasta ./assests...");
         const pastaAssets = "./assests";
 
-        // Lê todos os arquivos da pasta e filtra apenas os .pdf
+        // Lê todos os ficheiros da pasta e filtra apenas os .pdf
         const arquivos = fs.readdirSync(pastaAssets).filter(file => file.endsWith(".pdf"));
 
         if (arquivos.length === 0) {
-            console.log("Nenhum arquivo PDF encontrado na pasta.");
+            console.log("Nenhum ficheiro PDF encontrado na pasta.");
             return;
         }
 
@@ -29,12 +29,17 @@ async function processarPDFs() {
             const loader = new PDFLoader(caminhoCompleto);
             const docs = await loader.load();
 
-            // Você pode manter a lógica de remover o sumário aqui, se todos os PDFs tiverem a mesma estrutura
-            const docsSemSumario = docs.filter(doc => doc.metadata.loc.pageNumber >= 5);
-            todosDocs.push(...docsSemSumario);
+            // Adiciona o nome do ficheiro aos metadados para a IA saber a origem
+            docs.forEach(doc => {
+                doc.metadata.ficheiro_origem = arquivo;
+            });
+
+            // ATENÇÃO: Removi a restrição de "pageNumber >= 5". 
+            // Se tiver PDFs com menos de 5 páginas, eles eram ignorados antes!
+            todosDocs.push(...docs);
         }
 
-        console.log("2. A dividir o texto em pedaços...");
+        console.log("2. A dividir o texto em pedaços organizados...");
         const textSplitter = new RecursiveCharacterTextSplitter({
             chunkSize: 1000,
             chunkOverlap: 200,

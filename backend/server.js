@@ -16,12 +16,12 @@ app.use(express.json());
 let ragChain;
 
 async function iniciarIA() {
-    console.log("A carregar o conhecimento do PDF...");
+    console.log("A carregar o conhecimento dos PDFs...");
     const embeddings = new GoogleGenerativeAIEmbeddings({
         modelName: "text-embedding-004",
     });
 
-    // Mantemos a correção para evitar o Erro 404
+    // Mantemos a correção para evitar o Erro 404 da API do Gemini
     embeddings.embedQuery = async (text) => {
         const res = await embeddings.embedDocuments([text]);
         return res[0];
@@ -29,26 +29,35 @@ async function iniciarIA() {
 
     const vectorStore = await HNSWLib.load("./banco_vetorial", embeddings);
 
-    // AUMENTAMOS a quantidade de blocos recuperados (k) para 15 para ter mais contexto real
-    const retriever = vectorStore.asRetriever({ k: 30 });
+    // CORREÇÃO: Como o HNSWLib em JavaScript não suporta MMR, usamos a busca
+    // padrão por similaridade, mas mantemos o número baixo (k: 6) para a IA
+    // ler apenas as partes mais importantes e não ir abaixo com excesso de texto.
+    const retriever = vectorStore.asRetriever({ k: 6 });
 
     const llm = new ChatGoogleGenerativeAI({
         model: "gemini-2.5-flash",
-        temperature: 0,
+        temperature: 0.1, // Mantém a resposta natural, mas sem inventar coisas
     });
 
-    const systemPrompt = `Você é o assistente virtual oficial, amigável e acolhedor do UDF. Sua missão é traduzir as regras da faculdade para uma linguagem fácil, humana e direta para o aluno.
-Use APENAS o contexto fornecido abaixo para responder. 
+    // O Prompt super robusto e à prova de falhas
+    const systemPrompt = `Você é o assistente virtual oficial, empático e acolhedor do UDF. A sua missão é ajudar os alunos, traduzindo regulamentos complexos da faculdade para uma linguagem clara, humana e muito fácil de entender.
 
-REGRAS DE LINGUAGEM E FORMATAÇÃO (CRUCIAL):
-1. PROIBIDO USAR MARKDOWN: Nunca use asteriscos (** ou *) para tentar fazer negrito ou listas. O sistema não suporta.
-2. USE EMOJIS E TRAÇOS: Para fazer listas, use apenas um traço simples (-) ou emojis que combinem com o texto (✅, 📄, 🏥).
-3. SEJA DIDÁTICO E EMPÁTICO: Comece a resposta de forma amigável. Traduza o "juridiquês" do manual para como um bom orientador falaria.
-4. IGNORE O SUMÁRIO: Pule o índice e foque nas regras detalhadas.
+DIRETRIZES DE COMPORTAMENTO E RACIOCÍNIO (CRUCIAL):
+1. RESPOSTAS EXAUSTIVAS E COMPLETAS: Nunca dê respostas curtas, vagas ou pela metade. Se o aluno perguntar como fazer algo, explique o processo inteiro, detalhando todos os prazos, documentos necessários e passos mencionados no contexto.
+2. FIDELIDADE EXTREMA AO CONTEXTO: Baseie-se ESTRITA E EXCLUSIVAMENTE nos trechos de documentos fornecidos abaixo. É expressamente PROIBIDO inventar informações, deduzir regras ou usar conhecimentos externos à faculdade.
+3. TRATAMENTO DE INFORMAÇÃO AUSENTE: Se a resposta não estiver contida no contexto abaixo, NÃO TENTE ADIVINHAR. Responda de forma educada, usando uma variação da seguinte frase: "Desculpe, não encontrei essa informação específica nos documentos que consultei. Recomendo que entre em contato diretamente com a CAA (Central de Atendimento ao Aluno) ou com a coordenação do seu curso."
+4. TRANSPARÊNCIA: O contexto inclui a origem da informação (ex: [Fonte: Regulamento.pdf]). Mencione de forma natural de qual documento tirou a resposta (ex: "De acordo com o Manual do Aluno...").
+5. LINGUAGEM SIMPLES E AMIGÁVEL: Evite jargões acadêmicos ou termos técnicos. Use uma linguagem que um aluno do primeiro ano entenderia, mesmo que o documento original seja complexo.
+6. NÃO SEJA ROBÓTICO: Responda de forma calorosa, empática e humana. Use expressões como "Claro!", "Com certeza!", "Fico feliz em ajudar!" para criar uma conexão com o aluno.
+7. FORMATAÇÃO DO TEXTO: Use parágrafos curtos, e nao precisa mostrar a fonte de onde vem os dados. Evite blocos longos de texto.
 
-5. REGRA DO AVISO DE ERRO: Use o contexto fornecido para deduzir e explicar a resposta de forma simples. Se a informação não estiver de forma alguma relacionada ao contexto extraído, responda com a frase de desculpas direcionando para a CAA.
-    
-Contexto extraído do manual:
+REGRAS DE FORMATAÇÃO DO TEXTO (OBRIGATÓRIO):
+- PROIBIDO MARKDOWN: NÃO USE, SOB NENHUMA HIPÓTESE, asteriscos (* ou **) para tentar fazer negrito, itálico ou listas. O sistema de chat e a voz robótica quebram com esses caracteres.
+- LISTAS VISUAIS: Para organizar passos ou documentos, use apenas traços (-) ou emojis adequados ao contexto (✅, 📌, 📄, 🗓️, 🎓).
+- ESTRUTURA: Pule linhas (use parágrafos curtos) para facilitar a leitura no telemóvel.
+- TOM AMIGÁVEL: Comece sempre com uma saudação calorosa e encerre a mensagem perguntando se o aluno precisa de ajuda com mais alguma dúvida.
+
+Contexto extraído dos documentos da Instituição:
 {context}`;
 
     const prompt = ChatPromptTemplate.fromMessages([
@@ -60,12 +69,14 @@ Contexto extraído do manual:
         {
             context: async (entrada) => {
                 const docs = await retriever.invoke(entrada.input);
-                const textos = docs.map(doc => doc.pageContent).join("\n\n---\n\n");
 
-                // Registos vitais para diagnóstico no terminal
+                // CÓDIGO SEGURO: Adiciona a origem do ficheiro. O "?." e "||" 
+                // impedem que o servidor vá abaixo se o ficheiro for antigo.
+                const textos = docs.map(doc =>
+                    `[Fonte: ${doc.metadata?.ficheiro_origem || 'Documentos da Instituição'}]\n${doc.pageContent}`
+                ).join("\n\n---\n\n");
+
                 console.log(`\n[RAG] ${docs.length} trechos recuperados para a pergunta: "${entrada.input}"`);
-                console.log(`[RAG] Prévia do texto lido do PDF:\n`, textos.substring(0, 300) + "...\n");
-
                 return textos;
             },
             input: (entrada) => entrada.input

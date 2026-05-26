@@ -10,6 +10,7 @@ function App() {
   const [input, setInput] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [falando, setFalando] = useState(false);
+  const [pausado, setPausado] = useState(false);
   const fimDoChatRef = useRef(null);
 
   const rolarParaBaixo = () => {
@@ -26,6 +27,11 @@ function App() {
         window.speechSynthesis.getVoices();
       };
     }
+    return () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
   }, []);
 
   const falarTexto = (texto) => {
@@ -34,40 +40,91 @@ function App() {
       return;
     }
 
+    // Limpa qualquer leitura que tenha ficado encravada
     window.speechSynthesis.cancel();
+    setPausado(false);
 
-    const textoLimpo = texto.replace(/[*#]/g, '');
-    const utterance = new SpeechSynthesisUtterance(textoLimpo);
+    // Filtro para remover emojis e marcações da voz
+    const textoLimpo = texto
+      .replace(/[*#]/g, '')
+      .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')
+      .replace(/[\u{2700}-\u{27BF}]/gu, '')
+      .replace(/[\u{2600}-\u{26FF}]/gu, '');
 
-    utterance.lang = 'pt-BR';
-    utterance.rate = 1.05;
-    utterance.pitch = 1.0;
+    // Divide o texto longo em frases menores (por pontos, exclamações ou linhas)
+    // Isso evita que o navegador "corte" o áudio de textos longos
+    const pedacos = (textoLimpo.match(/[^.!?\n]+[.!?\n]*/g) || [textoLimpo])
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
 
     const vozes = window.speechSynthesis.getVoices();
-    const vozPremium = vozes.find(voz =>
-      voz.lang.includes('pt-BR') &&
-      (voz.name.includes('Google') || voz.name.includes('Microsoft Francisca') || voz.name.includes('Microsoft Antonio') || voz.name.includes('Premium'))
-    );
+    let vozEscolhida = null;
 
-    if (vozPremium) {
-      utterance.voice = vozPremium;
-    } else {
-      const vozPadrao = vozes.find(voz => voz.lang.includes('pt-BR'));
-      if (vozPadrao) utterance.voice = vozPadrao;
+    if (vozes.length > 0) {
+      const vozPremium = vozes.find(voz =>
+        voz.lang.includes('pt-BR') &&
+        (voz.name.includes('Google') || voz.name.includes('Microsoft Francisca') || voz.name.includes('Microsoft Antonio') || voz.name.includes('Premium'))
+      );
+      vozEscolhida = vozPremium || vozes.find(voz => voz.lang.includes('pt-BR'));
     }
 
-    utterance.onstart = () => setFalando(true);
-    utterance.onend = () => setFalando(false);
-    utterance.onerror = () => setFalando(false);
+    // Pequeno atraso para garantir que o navegador limpou o canal de áudio
+    setTimeout(() => {
+      if (pedacos.length === 0) return;
 
-    window.speechSynthesis.speak(utterance);
+      // Envia cada frase para a fila de reprodução do navegador
+      pedacos.forEach((frase, index) => {
+        const utterance = new SpeechSynthesisUtterance(frase);
+        utterance.lang = 'pt-BR';
+        utterance.rate = 1.05;
+        utterance.pitch = 1.0;
+
+        if (vozEscolhida) utterance.voice = vozEscolhida;
+
+        // Quando a PRIMEIRA frase da fila começa a ser lida
+        if (index === 0) {
+          utterance.onstart = () => {
+            setFalando(true);
+            setPausado(false);
+          };
+        }
+
+        // Quando a ÚLTIMA frase da fila termina de ser lida
+        if (index === pedacos.length - 1) {
+          utterance.onend = () => {
+            setFalando(false);
+            setPausado(false);
+          };
+        }
+
+        utterance.onerror = (e) => {
+          console.error("Erro na leitura da frase:", e);
+        };
+
+        // Adiciona à fila de leitura invisível
+        window.speechSynthesis.speak(utterance);
+      });
+    }, 100);
   };
 
-  // NOVA FUNÇÃO: Para interromper o áudio manualmente
+  // Função para Pausar e Retomar
+  const pausarAudio = () => {
+    if ('speechSynthesis' in window) {
+      if (pausado) {
+        window.speechSynthesis.resume();
+        setPausado(false);
+      } else {
+        window.speechSynthesis.pause();
+        setPausado(true);
+      }
+    }
+  };
+
   const pararAudio = () => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       setFalando(false);
+      setPausado(false);
     }
   };
 
@@ -77,6 +134,7 @@ function App() {
 
     window.speechSynthesis.cancel();
     setFalando(false);
+    setPausado(false);
 
     const novaMensagemUsuario = { remetente: 'user', texto: input };
     setMensagens((prev) => [...prev, novaMensagemUsuario]);
@@ -90,20 +148,31 @@ function App() {
         body: JSON.stringify({ pergunta: novaMensagemUsuario.texto }),
       });
 
+      if (!response.ok) {
+        throw new Error("Erro na resposta do servidor");
+      }
+
       const data = await response.json();
 
+      // Limpa os asteriscos do texto ANTES de mostrar no ecrã visual
+      const respostaVisual = data.resposta.replace(/\*/g, '');
+
       setMensagens((prev) => [
         ...prev,
-        { remetente: 'bot', texto: data.resposta }
+        { remetente: 'bot', texto: respostaVisual }
       ]);
 
-      falarTexto(data.resposta);
+      // Manda a resposta para ser falada (em pedaços)
+      falarTexto(respostaVisual);
 
     } catch (error) {
+      console.error("Erro de ligação:", error);
+      const erroMsg = 'Desculpe, ocorreu um erro de ligação. Verifique se o servidor backend está a correr.';
       setMensagens((prev) => [
         ...prev,
-        { remetente: 'bot', texto: 'Desculpe, ocorreu um erro ao ligar ao servidor. Tente novamente.' }
+        { remetente: 'bot', texto: erroMsg }
       ]);
+      falarTexto(erroMsg);
     } finally {
       setCarregando(false);
     }
@@ -113,26 +182,37 @@ function App() {
     <div className="app-background">
       <div className="chat-container">
         <header className="chat-header">
-          <h2>Assistente Virtual da Faculdade</h2>
-          <p>Tire as suas dúvidas sobre os documentos</p>
+          <div className="header-text">
+            <h2>Assistente Virtual</h2>
+            <p>Dúvidas sobre os documentos da Faculdade</p>
+          </div>
         </header>
 
         <div className="avatar-section">
-          <div className={`avatar-wrapper ${falando ? 'is-talking' : ''}`}>
+          {/* Se estiver pausado, o avatar volta a ser a imagem estática em vez do GIF */}
+          <div className={`avatar-wrapper ${falando && !pausado ? 'is-talking' : ''}`}>
             <img
-              src={falando ? robotGif : robotImg}
-              alt="Avatar do Assistente"
+              src={falando && !pausado ? robotGif : robotImg}
+              alt="Avatar"
               className="avatar-image"
             />
           </div>
 
-          {/* NOVA ÁREA: Status e botão de parar lado a lado */}
           {falando && (
             <div className="audio-controls">
-              <p className="status-falando">🗣️ O assistente está a falar...</p>
-              <button onClick={pararAudio} className="stop-audio-btn" title="Parar Áudio">
-                ⏹️ Parar
-              </button>
+              <span className="status-falando">
+                <span className={`dot-pulse ${pausado ? 'paused' : ''}`}></span>
+                {pausado ? 'Leitura Pausada' : 'A falar...'}
+              </span>
+
+              <div className="audio-buttons">
+                <button onClick={pausarAudio} className="pause-audio-btn" title={pausado ? "Retomar" : "Pausar"}>
+                  {pausado ? '▶ Retomar' : '⏸ Pausar'}
+                </button>
+                <button onClick={pararAudio} className="stop-audio-btn" title="Parar Áudio">
+                  ⏹ Parar
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -166,7 +246,10 @@ function App() {
             disabled={carregando}
           />
           <button type="submit" className="send-button" disabled={carregando || !input.trim()}>
-            Enviar
+            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
           </button>
         </form>
       </div>
