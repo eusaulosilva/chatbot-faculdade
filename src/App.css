@@ -218,3 +218,173 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   animation: fadeIn 0.3s ease-in-out;
 }
+
+/* Adicione ao seu App.css existente */
+
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 15px;
+  background-color: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid #ddd;
+}
+
+.avatar-wrapper {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid #ccc;
+  transition: all 0.3s ease;
+  background-color: white;
+}
+
+.avatar-wrapper.is-talking {
+  border-color: #4CAF50;
+  /* Borda verde quando está falando */
+  box-shadow: 0 0 15px rgba(76, 175, 80, 0.5);
+  transform: scale(1.05);
+  /* Dá um leve zoom */
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.status-falando {
+  font-size: 0.8rem;
+  color: #4CAF50;
+  margin-top: 8px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.6;
+  }
+}
+/* 1. TRANQUE O TAMANHO DO CONTAINER (WRAPPER) */
+.avatar-wrapper {
+  /* Defina um tamanho fixo exato. Ajuste estes valores para o tamanho que desejar (ex: 120px, 150px) */
+  width: 150px !important; 
+  height: 150px !important; 
+  
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  
+  /* Muito importante: isto garante que bordas não alterem o tamanho total do círculo */
+  box-sizing: border-box; 
+  
+  /* Defina uma borda fixa mesmo quando estiver parado (pode ser da cor do fundo ou transparente) */
+  border: 4px solid #ccc; 
+  transition: all 0.3s ease; /* Transição suave para efeitos */
+}
+
+/* 2. EFEITO QUANDO ESTÁ A FALAR (SE TIVER) */
+/* Altere apenas a COR ou a SOMBRA, nunca o "width", "height" ou o tamanho do "border" */
+.avatar-wrapper.is-talking {
+  border-color: #007bff; /* Exemplo: a borda fica azul quando fala */
+  box-shadow: 0 0 15px rgba(0, 123, 255, 0.4); /* Adiciona um brilho */
+}
+
+/* 3. A IMAGEM / GIF LÁ DENTRO */
+.avatar-image {
+  width: 50%;
+  height: 100%;
+  object-fit: cover;
+  
+  /* Mantenha o zoom que configurámos antes para mostrar só a cabeça */
+  transform: scale(2); 
+  transform-origin: 50% 10%; 
+}
+/* Container para alinhar o texto e o botão */
+.audio-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* Estilo do botão de parar */
+.stop-audio-btn {
+  background-color: #dc3545; /* Cor vermelha para indicar "parar" */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background-color 0.2s ease;
+}
+
+.stop-audio-btn:hover {
+  background-color: #c82333;
+}/* Container para alinhar o texto e o botão (Pode manter igual) */
+.audio-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+/* NOVO ESTILO: Botão "Bonitinho" */
+.stop-audio-btn {
+  background: linear-gradient(135deg, #ff6b6b, #ff4757); /* Degradê vermelho/coral moderno */
+  color: white;
+  border: none;
+  border-radius: 30px; /* Deixa as bordas totalmente redondas (formato pílula) */
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  font-weight: bold; /* Texto um pouco mais forte */
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  
+  /* Sombra suave e colorida para dar a sensação de que o botão está "aceso" */
+  box-shadow: 0 4px 10px rgba(255, 71, 87, 0.3); 
+  
+  /* Deixa as animações fluidas */
+  transition: all 0.3s ease; 
+}
+
+/* Efeito ao passar o rato (Hover) */
+.stop-audio-btn:hover {
+  background: linear-gradient(135deg, #ff7a7a, #ff5e6d); /* Fica ligeiramente mais claro */
+  box-shadow: 0 6px 14px rgba(255, 71, 87, 0.4); /* Sombra aumenta um pouco */
+  transform: translateY(-2px); /* O botão dá um leve salto para cima */
+}
+
+/* Efeito ao clicar (Active) */
+.stop-audio-btn:active {
+  transform: translateY(1px); /* O botão afunda ao clicar */
+  box-shadow: 0 2px 5px rgba(255, 71, 87, 0.2); /* A sombra diminui */
+}
+
+/* Ajuste no texto de status para combinar com o novo botão */
+.status-falando {
+  font-size: 0.9rem;
+  color: #555;
+  font-weight: 500;
+  margin: 0; /* Remove margens extra para alinhar bem com o botão */
+}

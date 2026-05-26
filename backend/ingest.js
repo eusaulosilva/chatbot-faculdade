@@ -3,27 +3,45 @@ import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { HNSWLib } from "@langchain/community/vectorstores/hnswlib";
 import * as dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 
 dotenv.config();
 
-async function processarPDF() {
+async function processarPDFs() {
     try {
-        console.log("1. A carregar o PDF...");
-        const loader = new PDFLoader("./assests/1779463563881_UDF_MANUAL_DO_ALUNO_2025.pdf");
-        const docs = await loader.load();
+        console.log("1. A procurar PDFs na pasta ./assests...");
+        const pastaAssets = "./assests";
 
-        // O sumário (índice) nas primeiras páginas "rouba" os resultados da busca porque tem todas as palavras-chave.
-        // Removemos as páginas de 1 a 4 para a IA pesquisar apenas o conteúdo real.
-        const docsSemSumario = docs.filter(doc => doc.metadata.loc.pageNumber >= 5);
+        // Lê todos os arquivos da pasta e filtra apenas os .pdf
+        const arquivos = fs.readdirSync(pastaAssets).filter(file => file.endsWith(".pdf"));
+
+        if (arquivos.length === 0) {
+            console.log("Nenhum arquivo PDF encontrado na pasta.");
+            return;
+        }
+
+        let todosDocs = [];
+
+        for (const arquivo of arquivos) {
+            console.log(`A carregar: ${arquivo}...`);
+            const caminhoCompleto = path.join(pastaAssets, arquivo);
+            const loader = new PDFLoader(caminhoCompleto);
+            const docs = await loader.load();
+
+            // Você pode manter a lógica de remover o sumário aqui, se todos os PDFs tiverem a mesma estrutura
+            const docsSemSumario = docs.filter(doc => doc.metadata.loc.pageNumber >= 5);
+            todosDocs.push(...docsSemSumario);
+        }
 
         console.log("2. A dividir o texto em pedaços...");
         const textSplitter = new RecursiveCharacterTextSplitter({
             chunkSize: 1000,
             chunkOverlap: 200,
         });
-        const chunks = await textSplitter.splitDocuments(docsSemSumario);
+        const chunks = await textSplitter.splitDocuments(todosDocs);
 
-        console.log("3. A criar a base de dados vetorial...");
+        console.log("3. A criar a base de dados vetorial com", chunks.length, "pedaços...");
         const embeddings = new GoogleGenerativeAIEmbeddings({
             modelName: "text-embedding-004",
         });
@@ -31,10 +49,10 @@ async function processarPDF() {
         const vectorStore = await HNSWLib.fromDocuments(chunks, embeddings);
         await vectorStore.save("./banco_vetorial");
 
-        console.log("Sucesso! O PDF foi processado e aprendido.");
+        console.log("Sucesso! Todos os PDFs foram processados e aprendidos.");
     } catch (error) {
-        console.error("Erro ao processar o PDF:", error);
+        console.error("Erro ao processar os PDFs:", error);
     }
 }
 
-processarPDF();
+processarPDFs();
